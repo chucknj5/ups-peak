@@ -1,0 +1,855 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>UPS Peak</title>
+<style>
+:root{
+  --bg:#f4f1ec;--card:#fff;--ink:#1f1a14;--mute:#6f675c;--line:#e4ded4;
+  --brown:#351c15;--gold:#ffb500;--cur:#8a6d4b;--peak:#ffb500;--bad:#c0392b;--ok:#2f7d4f;
+}
+*{box-sizing:border-box}
+body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:var(--bg);color:var(--ink)}
+header{background:var(--brown);color:#fff;padding:18px 28px;display:flex;flex-wrap:wrap;gap:16px;align-items:center;justify-content:space-between;border-bottom:4px solid var(--gold)}
+header h1{margin:0;font-size:20px;letter-spacing:.5px}
+header small{color:#d9c9b8;display:block;margin-top:3px}
+.tools{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.tools select,.tools input,.tools button{padding:8px 10px;border-radius:6px;border:1px solid #6b4a3d;background:#4a2a20;color:#fff;font-size:13px}
+.tools button{cursor:pointer;background:var(--gold);color:#351c15;border:0;font-weight:700}
+main{padding:22px 28px;max-width:1500px;margin:auto}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:14px;margin-bottom:20px}
+.kpi{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px 16px}
+.kpi .l{font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--mute)}
+.kpi .v{font-size:28px;font-weight:700;margin-top:4px}
+.kpi .s{font-size:12px;color:var(--mute);margin-top:2px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(520px,1fr));gap:18px;margin-bottom:20px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:16px 18px}
+.card h2{margin:0 0 4px;font-size:15px}
+.card p.sub{margin:0 0 12px;font-size:12px;color:var(--mute)}
+.legend{display:flex;gap:14px;font-size:12px;color:var(--mute);margin-bottom:10px}
+.legend i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:5px}
+.row{display:grid;grid-template-columns:210px 1fr 80px;gap:10px;align-items:center;margin:7px 0;font-size:12px}
+.row .nm{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.row .nm b{font-weight:600}
+.row .nm span{color:var(--mute)}
+.bars{display:flex;flex-direction:column;gap:3px}
+.bar{height:9px;border-radius:2px;min-width:1px}
+.bar.cur{background:var(--cur)}.bar.peak{background:var(--peak)}
+.row .val{text-align:right;font-variant-numeric:tabular-nums;color:var(--mute)}
+.row .val b{color:var(--ink)}
+.gap-pos{color:var(--bad);font-weight:700}
+table{width:100%;border-collapse:collapse;font-size:12px}
+th,td{padding:7px 9px;border-bottom:1px solid var(--line);text-align:left;white-space:nowrap}
+th{background:#faf7f2;position:sticky;top:0;cursor:pointer;user-select:none;font-size:11px;text-transform:uppercase;letter-spacing:.4px;color:var(--mute)}
+td.n,th.n{text-align:right;font-variant-numeric:tabular-nums}
+.scroll{overflow:auto;max-height:520px;border:1px solid var(--line);border-radius:8px}
+.empty{color:#bbb}
+.tag{display:inline-block;padding:2px 7px;border-radius:10px;font-size:11px;background:#f1e8d8}
+.tag.warn{background:#fde3df;color:var(--bad)}
+.tag.ok{background:#dff0e5;color:var(--ok)}
+.gaps li{margin:4px 0;font-size:12px}
+.gaps ul{margin:0;padding-left:18px}
+#drop{display:none;position:fixed;inset:0;background:rgba(53,28,21,.85);color:#fff;font-size:26px;align-items:center;justify-content:center;z-index:9}
+.note{font-size:12px;color:var(--mute);margin-top:10px}
+.tabs{background:#4a2a20;display:flex;gap:2px;padding:0 28px}
+.tabs button{padding:10px 18px;border:0;background:transparent;color:#d9c9b8;font-weight:600;cursor:pointer;border-bottom:3px solid transparent;font-size:13px}
+.tabs button.on{color:#fff;border-bottom-color:var(--gold)}
+.editbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:12px}
+.editbar button,.setup button{padding:8px 14px;border-radius:6px;border:0;background:var(--gold);color:#351c15;font-weight:700;cursor:pointer;font-size:13px}
+.editbar button.sec,.setup button.sec{background:#eee;color:#333}
+#editStatus{font-size:13px;color:var(--mute)}
+#tEdit input{width:100%;min-width:50px;border:1px solid transparent;background:transparent;padding:5px 6px;font:inherit;font-size:12px;border-radius:4px}
+#tEdit input:hover{border-color:var(--line)}
+#tEdit input:focus{outline:2px solid var(--gold);background:#fff}
+#tEdit input.dirty{background:#fff6d6}
+#tEdit input.bad{background:#fde3df}
+#tEdit td{padding:2px 3px}
+#tEdit button{border:0;background:none;color:var(--bad);cursor:pointer;font-size:14px}
+.setup input{padding:7px 9px;border:1px solid var(--line);border-radius:6px;width:100%;max-width:620px;font-size:12px;margin:4px 0 10px;display:block}
+.setup pre{background:#1f1a14;color:#f3e9d9;padding:12px;border-radius:8px;overflow:auto;max-height:340px;font-size:11px}
+.setup ol{font-size:13px;line-height:1.7}
+.nhf{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin:6px 0}
+.nhf select,.nhf input[type=date]{padding:7px 9px;border:1px solid var(--line);border-radius:6px;font-size:13px;background:#fff;color:var(--ink)}
+.nhf label{font-size:12px;color:var(--mute);display:flex;align-items:center;gap:6px}
+.nhf .rng button{padding:6px 10px;border:1px solid var(--line);background:#fff;border-radius:6px;font-size:12px;cursor:pointer;color:var(--ink)}
+.nhf .rng button.on{background:var(--brown);color:#fff;border-color:var(--brown)}
+.grid1{display:grid;grid-template-columns:1fr;gap:18px;margin-bottom:20px}
+.chwrap{overflow-x:auto}
+.chwrap svg text{font-family:inherit}
+#nhTip{position:fixed;pointer-events:none;background:#1f1a14;color:#fff;font-size:12px;padding:8px 10px;border-radius:6px;display:none;z-index:20;line-height:1.55}
+.banner{background:#fff6d6;border:1px solid #f1dc8d;color:#6a5200;padding:8px 12px;border-radius:8px;font-size:12px;margin-top:8px}
+.nhempty{padding:36px;text-align:center;color:var(--mute);font-size:14px}
+.rate-lo{color:var(--bad);font-weight:700}
+@media(max-width:640px){.grid{grid-template-columns:1fr}.row{grid-template-columns:120px 1fr 64px}}
+</style>
+</head>
+<body>
+<div id="drop">Drop CSV export of the sheet to refresh data</div>
+<header>
+  <div>
+    <h1>UPS EDUCATION – PEAK DASHBOARD</h1>
+    <small id="meta">Source: Google Sheet "UPS Education - Peak" · Peak window Nov 27 – Dec 23</small>
+  </div>
+  <div class="tools">
+    <select id="fSite"></select>
+    <select id="fDept"></select>
+    <input id="fText" placeholder="Search…">
+    <button id="btnSync">⟳ Sync from Google Sheet</button>
+    <button id="btnReset" style="background:#4a2a20;color:#fff;border:1px solid #6b4a3d;font-weight:400">Reset embedded data</button>
+  </div>
+</header>
+<nav class="tabs"><button id="tabDash" class="on">Dashboard</button><button id="tabEdit">Edit Data</button><button id="tabNH">New Hires</button></nav>
+<main id="viewDash">
+  <div class="kpis" id="kpis"></div>
+  <div class="grid">
+    <div class="card"><h2>Headcount: Current vs Peak</h2><p class="sub">Sorted by additional heads needed (peak − current). Blank peak = not yet submitted.</p>
+      <div class="legend"><span><i style="background:var(--cur)"></i>Current</span><span><i style="background:var(--peak)"></i>Peak (heaviest day)</span></div><div id="chHC"></div></div>
+    <div class="card"><h2>Volume: Current vs Estimated Peak</h2><p class="sub">Packages per day. Sorted by estimated peak volume.</p>
+      <div class="legend"><span><i style="background:var(--cur)"></i>Current</span><span><i style="background:var(--peak)"></i>Est. Peak</span></div><div id="chVol"></div></div>
+  </div>
+  <div class="grid">
+    <div class="card"><h2>Hours: Current vs Estimated Peak</h2><p class="sub">Weekly labor hours where reported.</p>
+      <div class="legend"><span><i style="background:var(--cur)"></i>Current hrs</span><span><i style="background:var(--peak)"></i>Est. Peak hrs</span></div><div id="chHrs"></div></div>
+    <div class="card"><h2>Rollup by Site</h2><p class="sub">All departments combined (reported values only).</p><div class="scroll" style="max-height:420px"><table id="tSite"></table></div></div>
+  </div>
+  <div class="grid">
+    <div class="card"><h2>Leads &amp; Key Roles</h2><p class="sub">Lines with lead needs or key-role requests.</p><div class="scroll" style="max-height:320px"><table id="tLeads"></table></div></div>
+    <div class="card"><h2>Data Gaps</h2><p class="sub">Lines still missing peak information.</p><div class="gaps" id="gaps"></div></div>
+  </div>
+  <div class="card"><h2>Full Detail</h2><p class="sub">Click a column to sort.</p><div class="scroll"><table id="tAll"></table></div>
+    <div class="note">Tip: drag a CSV export of the sheet onto this page to refresh the embedded data (headers must match the sheet).</div></div>
+</main>
+
+<main id="viewEdit" style="display:none">
+  <div class="card">
+    <h2>Edit Data → Google Sheet</h2>
+    <p class="sub">Change any cell; the Dashboard tab updates instantly. <b>Push to Google Sheet</b> writes only the changed lines (yellow) back to the sheet, then re-pulls to confirm.</p>
+    <div class="editbar">
+      <button id="btnPush">⬆ Push changes to Google Sheet</button>
+      <button id="btnPull" class="sec">⬇ Pull latest from sheet</button>
+      <button id="btnAdd" class="sec">＋ Add line</button>
+      <span id="dirtyCount"></span><span id="editStatus"></span>
+    </div>
+    <div class="scroll" style="max-height:620px"><table id="tEdit"></table></div>
+    <div class="note">Lines are matched to sheet rows by Site + Department (the original pair, so you can rename). New lines are appended to the sheet. Deleting rows is not pushed — delete those in Google Sheets.</div>
+  </div>
+  <div class="card setup" style="margin-top:18px">
+    <h2>One-time setup (needed for Push)</h2>
+    <p class="sub">A web page can't write to Google Sheets by itself, so a tiny Apps Script inside your sheet receives the changes.</p>
+    <ol>
+      <li>Open the sheet → <b>Extensions → Apps Script</b>. Delete everything there and paste the code below. Change <code>TOKEN</code> to your own password.</li>
+      <li><b>Deploy → New deployment → Web app</b>. Execute as: <b>Me</b>. Who has access: <b>Anyone</b>. Deploy and approve the permissions.</li>
+      <li>Copy the Web app URL and paste it below, along with the same token.</li>
+    </ol>
+    <label>Web app URL<input id="inUrl" placeholder="https://script.google.com/macros/s/.../exec"></label>
+    <label>Token<input id="inTok" placeholder="same TOKEN as in the script"></label>
+    <button id="btnCopy" class="sec" style="margin-bottom:8px">Copy script</button>
+    <pre id="gsCode"></pre>
+  </div>
+</main>
+
+<main id="viewNH" style="display:none">
+  <div class="card">
+    <h2>New Hires — Started vs No Show</h2>
+    <p class="sub">Pulled from the SmartSuite New Hires table. Day and week charts, filtered by site and shift. Starts empty: click Sync, or drop a SmartSuite CSV / JSON export anywhere on this tab.</p>
+    <div class="editbar">
+      <button id="nhSync">⟳ Sync from SmartSuite</button>
+      <button id="nhGear" class="sec">⚙ Connection</button>
+      <button id="nhSample" class="sec">Load sample data</button>
+      <span id="nhStatus" style="font-size:13px;color:var(--mute)"></span>
+    </div>
+    <div class="nhf">
+      <label>Site <select id="nhSite"></select></label>
+      <label>Shift <select id="nhShift"></select></label>
+      <label>From <input type="date" id="nhFrom"></label>
+      <label>To <input type="date" id="nhTo"></label>
+      <span class="rng" id="nhRng"><button data-w="2">2 wks</button> <button data-w="4">4 wks</button> <button data-w="8">8 wks</button> <button data-w="13">13 wks</button> <button data-w="0">All</button></span>
+      <label><input type="checkbox" id="nhSched"> Show scheduled</label>
+    </div>
+    <div id="nhBanner"></div>
+    <div id="nhConn" class="setup" style="display:none;margin-top:14px">
+      <h2 style="font-size:14px">Connection</h2>
+      <p class="sub">Option A (recommended): use the Apps Script web app from the Edit Data tab — your SmartSuite token stays inside Google, not in this page. Option B: paste your SmartSuite API token below (kept only in this browser); SmartSuite may block direct browser calls, in which case use Option A.</p>
+      <label>SmartSuite Account ID<input id="nhAcct"></label>
+      <label>New Hires table ID<input id="nhTable"></label>
+      <label>SmartSuite API token (option B)<input id="nhTok" type="password" placeholder="paste here, stored only in this browser"></label>
+      <p class="sub">Apps Script URL and token are shared with the Edit Data tab (currently <b id="nhScriptState"></b>).</p>
+      <button id="nhCopyGs" class="sec">Copy Apps Script add-on (Option A)</button>
+    </div>
+  </div>
+  <div class="kpis" id="nhKpis" style="margin-top:18px"></div>
+  <div class="grid1">
+    <div class="card"><h2>By Day</h2><p class="sub" id="nhDaySub"></p><div class="legend" id="nhLegD"></div><div class="chwrap" id="nhDay"></div></div>
+    <div class="card"><h2>By Week (week ending Saturday)</h2><p class="sub" id="nhWeekSub"></p><div class="legend" id="nhLegW"></div><div class="chwrap" id="nhWeek"></div></div>
+  </div>
+  <div class="grid">
+    <div class="card"><h2>By Site</h2><div class="scroll" style="max-height:380px"><table id="nhTSite"></table></div></div>
+    <div class="card"><h2>By Shift</h2><div class="scroll" style="max-height:380px"><table id="nhTShift"></table></div></div>
+  </div>
+  <div class="card"><h2>Records</h2><p class="sub" id="nhDetSub"></p><div class="scroll"><table id="nhTDet"></table></div>
+    <div class="note">Grouping: Started = status STARTED · No Show = No Show I / II / III / DNU / Missing ID · Scheduled = Scheduled to Start · Other = Sent Home, DNR, Bad BG, Already Active. Show rate = Started ÷ (Started + No Show). Only title (site and name), start date, shift, status and type are loaded; SS #, phone and ID files are never read.</div></div>
+</main>
+<div id="nhTip"></div>
+
+<script>
+/* ===== EMBEDDED DATA (pulled from Google Sheet 'UPS Education - Peak', 11/06/2026) ===== */
+const EMBEDDED = [
+{site:"Site 3.0 - Missouri",dept:"Transfer-PM Processing-PM",shift:"",callOffice:"Monday",callClient:"",curHC:null,peakHC:45,curVol:45000,peakVol:null,curHrs:null,peakHrs:null,curLeads:null,needLeads:"",keyRole:"",keyRoleN:null,firstSat:"",shiftRange:"",days:"",we:"",peakRange:""},
+{site:"Site 4.0 - New York",dept:"Processing-PM",shift:"",callOffice:"Monday",callClient:"",curHC:null,peakHC:7,curVol:49000,peakVol:null,curHrs:24,peakHrs:null,curLeads:null,needLeads:"",keyRole:"",keyRoleN:null,firstSat:"",shiftRange:"",days:"",we:"",peakRange:""},
+{site:"Site 5.0 - South New Jersey",dept:"Sort",shift:"",callOffice:"Monday",callClient:"",curHC:50,peakHC:142,curVol:81000,peakVol:null,curHrs:162,peakHrs:1278,curLeads:null,needLeads:"2",keyRole:"Leadership",keyRoleN:null,firstSat:"Nov 28",shiftRange:"",days:"",we:"",peakRange:"Nov 27 - Dec 23"},
+{site:"Site 5.0 - South New Jersey",dept:"Transfer-PM",shift:"",callOffice:"Monday",callClient:"",curHC:36,peakHC:96,curVol:51000,peakVol:null,curHrs:300,peakHrs:864,curLeads:null,needLeads:"1",keyRole:"Leadership",keyRoleN:null,firstSat:"Nov 28",shiftRange:"",days:"",we:"",peakRange:"Nov 27 - Dec 23"},
+{site:"Site 6.0 - Ohio",dept:"Sort",shift:"6am - 3pm",callOffice:"Monday",callClient:"Mondays @ 12:30pm",curHC:29,peakHC:45,curVol:61000,peakVol:110000,curHrs:198,peakHrs:250,curLeads:2,needLeads:"1 for each shift",keyRole:"Forklift",keyRoleN:5,firstSat:"Nov 28",shiftRange:"6am - 3pm",days:"Mon-Sat",we:"10/17",peakRange:"Nov 27 - Dec 23"},
+{site:"Site 6.0 - Ohio",dept:"Transfer-PM",shift:"7pm - 9am",callOffice:"Monday",callClient:"Mondays @ 12:30pm",curHC:32,peakHC:45,curVol:74000,peakVol:150000,curHrs:362,peakHrs:350,curLeads:2,needLeads:"1 lead per shift",keyRole:"Forklift",keyRoleN:5,firstSat:"Nov 28",shiftRange:"7pm - 9am",days:"Sun-Friday",we:"10/17",peakRange:"Nov 27 - Dec 23"},
+{site:"Site 7.0 - Florida",dept:"Processing-PM Transfer-PM",shift:"",callOffice:"Monday",callClient:"",curHC:30,peakHC:47,curVol:35000,peakVol:70000,curHrs:138,peakHrs:363,curLeads:null,needLeads:"",keyRole:"",keyRoleN:null,firstSat:"Nov 28",shiftRange:"",days:"",we:"",peakRange:"Nov 27 - Dec 23"},
+{site:"Site 10.0 - Illinois",dept:"Processing-PM",shift:"18:00",callOffice:"Monday",callClient:"Tues @ 15:00",curHC:24,peakHC:48,curVol:90000,peakVol:140000,curHrs:null,peakHrs:350,curLeads:3,needLeads:"3",keyRole:"",keyRoleN:null,firstSat:"Nov 28",shiftRange:"18:00",days:"",we:"10/7",peakRange:"Nov 27 - Dec 23"},
+{site:"Site 12.0 - Washington",dept:"Transfer-PM",shift:"",callOffice:"Monday",callClient:"",curHC:null,peakHC:null,curVol:null,peakVol:null,curHrs:null,peakHrs:null,curLeads:null,needLeads:"",keyRole:"",keyRoleN:null,firstSat:"",shiftRange:"",days:"",we:"",peakRange:""},
+{site:"Site 13.0 - Atlanta",dept:"Sort",shift:"",callOffice:"Monday",callClient:"",curHC:21,peakHC:null,curVol:67000,peakVol:null,curHrs:295,peakHrs:null,curLeads:null,needLeads:"",keyRole:"",keyRoleN:null,firstSat:"",shiftRange:"",days:"",we:"",peakRange:""},
+{site:"Site 15.0 - North Carolina",dept:"Sort-AM",shift:"0500 - 1200",callOffice:"Monday",callClient:"Wed 13:00",curHC:15,peakHC:22,curVol:35000,peakVol:80000,curHrs:66,peakHrs:176,curLeads:1,needLeads:"No",keyRole:"",keyRoleN:null,firstSat:"Nov 28",shiftRange:"0500 - 1200",days:"Mon-Sat",we:"10/24",peakRange:"Nov 27 - Dec 23"},
+{site:"Site 15.0 - North Carolina",dept:"Transfer-PM",shift:"0500 - 1200",callOffice:"Monday",callClient:"Wed 13:00",curHC:15,peakHC:22,curVol:35000,peakVol:80000,curHrs:102,peakHrs:176,curLeads:1,needLeads:"No",keyRole:"",keyRoleN:null,firstSat:"Nov 28",shiftRange:"0500 - 1200",days:"Mon-Sat",we:"10/24",peakRange:"Nov 27 - Dec 23"},
+{site:"Site 18.0 - Tennessee",dept:"Processing-MID",shift:"10am - 6pm",callOffice:"Monday",callClient:"Thursday 8am CST",curHC:0,peakHC:15,curVol:0,peakVol:30000,curHrs:null,peakHrs:120,curLeads:0,needLeads:"1 coordinator. Tyler will help support mid shift processing during peak",keyRole:"",keyRoleN:2,firstSat:"Nov 28",shiftRange:"10am - 6pm",days:"All",we:"10/31",peakRange:"Nov 27 - Dec 23"},
+{site:"Site 18.0 - Tennessee",dept:"Processing-PM",shift:"6pm - 4am",callOffice:"Monday",callClient:"Thursday 8am CST",curHC:45,peakHC:56,curVol:110000,peakVol:182000,curHrs:null,peakHrs:504,curLeads:2,needLeads:"No leads needed. Headcount will be 56 at night during peak.",keyRole:"",keyRoleN:8,firstSat:"Nov 28",shiftRange:"6pm - 4am",days:"All",we:"10/31",peakRange:"Nov 27 - Dec 23"},
+{site:"Site 18.0 - Tennessee",dept:"Sort",shift:"6:30a - 2:30p",callOffice:"Monday",callClient:"Thursday 8am CST",curHC:16,peakHC:23,curVol:55000,peakVol:92000,curHrs:null,peakHrs:184,curLeads:1,needLeads:"No additional leads needed. Total peak request will be for 23 daily",keyRole:"",keyRoleN:3,firstSat:"Oct 31",shiftRange:"6:30a - 2:30p",days:"All",we:"10/31",peakRange:"Nov 27 - Dec 23"},
+{site:"Site 19.0 - North Texas",dept:"Processing-PM",shift:"",callOffice:"Monday",callClient:"",curHC:42,peakHC:58,curVol:109000,peakVol:108000,curHrs:null,peakHrs:null,curLeads:null,needLeads:"",keyRole:"",keyRoleN:null,firstSat:"Nov 28",shiftRange:"",days:"",we:"",peakRange:"Nov 27 - Dec 23"},
+{site:"Site 23.0 - North New Jersey",dept:"Transfer-PM Processing-PM",shift:"",callOffice:"Monday",callClient:"",curHC:75,peakHC:120,curVol:78000,peakVol:101000,curHrs:663,peakHrs:550,curLeads:2,needLeads:"3",keyRole:"HSP",keyRoleN:2,firstSat:"Nov 28",shiftRange:"",days:"Sun-Friday",we:"10/7",peakRange:"Nov 27 - Dec 23"},
+{site:"Site 26.0 - South Carolina",dept:"Sort-AM",shift:"",callOffice:"Monday",callClient:"",curHC:19,peakHC:null,curVol:44000,peakVol:null,curHrs:170,peakHrs:null,curLeads:null,needLeads:"",keyRole:"",keyRoleN:null,firstSat:"",shiftRange:"",days:"",we:"",peakRange:""},
+{site:"Site 26.0 - South Carolina",dept:"Transfer-PM",shift:"",callOffice:"Monday",callClient:"",curHC:12,peakHC:null,curVol:40000,peakVol:null,curHrs:131,peakHrs:null,curLeads:null,needLeads:"",keyRole:"",keyRoleN:null,firstSat:"",shiftRange:"",days:"",we:"",peakRange:""},
+{site:"Site 101.5 - roadies",dept:"Processing-AM",shift:"",callOffice:"Monday",callClient:"",curHC:null,peakHC:null,curVol:null,peakVol:null,curHrs:null,peakHrs:null,curLeads:null,needLeads:"",keyRole:"",keyRoleN:null,firstSat:"",shiftRange:"",days:"",we:"",peakRange:""},
+{site:"Site 101.5 - roadies",dept:"Processing-PM",shift:"",callOffice:"Monday",callClient:"",curHC:null,peakHC:null,curVol:null,peakVol:null,curHrs:null,peakHrs:null,curLeads:null,needLeads:"",keyRole:"",keyRoleN:null,firstSat:"",shiftRange:"",days:"",we:"",peakRange:""}
+];
+
+/* ===== STATE ===== */
+const fresh=()=>EMBEDDED.map(r=>({...r,_k:r.site+'|'+r.dept}));
+let DATA = fresh();
+let sortKey = null, sortDir = 1;
+const $ = id => document.getElementById(id);
+const fmt = v => v==null ? '<span class="empty">—</span>' : Number(v).toLocaleString();
+const num = v => v==null ? 0 : v;
+const sum = (a,k) => a.reduce((s,r)=>s+num(r[k]),0);
+const esc = s => String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const label = r => `<b>${esc(r.site.replace(/^Site\s+/,''))}</b> <span>${esc(r.dept)}${r.shift?' · '+esc(r.shift):''}</span>`;
+
+function filtered(){
+  const s=$('fSite').value, d=$('fDept').value, t=$('fText').value.toLowerCase();
+  return DATA.filter(r=>(!s||r.site===s)&&(!d||r.dept===d)&&(!t||JSON.stringify(r).toLowerCase().includes(t)));
+}
+function fillFilters(){
+  const keep=[$('fSite').value,$('fDept').value];
+  const sites=[...new Set(DATA.map(r=>r.site))], depts=[...new Set(DATA.map(r=>r.dept))];
+  $('fSite').innerHTML='<option value="">All sites</option>'+sites.map(x=>`<option>${esc(x)}</option>`).join('');
+  $('fDept').innerHTML='<option value="">All departments</option>'+depts.map(x=>`<option>${esc(x)}</option>`).join('');
+  $('fSite').value=keep[0]; $('fDept').value=keep[1];
+}
+
+/* ===== CHARTS ===== */
+function pairChart(el, rows, kc, kp, unit){
+  const max=Math.max(1,...rows.map(r=>Math.max(num(r[kc]),num(r[kp]))));
+  if(!rows.length){el.innerHTML='<p class="sub">No data.</p>';return;}
+  el.innerHTML=rows.map(r=>{
+    const c=r[kc], p=r[kp];
+    const gap=(c!=null&&p!=null)?p-c:null;
+    return `<div class="row"><div class="nm" title="${esc(r.site+' '+r.dept)}">${label(r)}</div>
+      <div class="bars">
+        <div class="bar cur" style="width:${c==null?0:c/max*100}%"></div>
+        <div class="bar peak" style="width:${p==null?0:p/max*100}%"></div>
+      </div>
+      <div class="val">${c==null?'—':c.toLocaleString()} → <b>${p==null?'—':p.toLocaleString()}</b>${gap!=null&&unit!=='no'?`<br><span class="${gap>0?'gap-pos':''}">${gap>0?'+':''}${gap.toLocaleString()}</span>`:''}</div></div>`;
+  }).join('');
+}
+
+function render(){
+  const rows=filtered();
+  // KPIs
+  const both=rows.filter(r=>r.curHC!=null&&r.peakHC!=null);
+  const curHC=sum(rows,'curHC'), peakRep=rows.filter(r=>r.peakHC!=null);
+  const add=both.reduce((s,r)=>s+(r.peakHC-r.curHC),0);
+  const volBoth=rows.filter(r=>r.curVol&&r.peakVol);
+  const curV=volBoth.reduce((s,r)=>s+r.curVol,0), pkV=volBoth.reduce((s,r)=>s+r.peakVol,0);
+  const sites=new Set(rows.map(r=>r.site)).size;
+  const complete=rows.filter(r=>r.peakHC!=null&&r.peakVol!=null).length;
+  const leadsNeeded=rows.filter(r=>r.needLeads&&!/^no/i.test(r.needLeads)).length;
+  const k=[
+   ['Sites / Lines',`${sites} / ${rows.length}`,'in current view'],
+   ['Current Headcount',curHC.toLocaleString(),'sum of reported'],
+   ['Peak Headcount',sum(peakRep,'peakHC').toLocaleString(),`${peakRep.length} of ${rows.length} lines reporting`],
+   ['Heads to Add',(add>=0?'+':'')+add.toLocaleString(),`${both.length} lines with both values`],
+   ['Current Volume',sum(rows,'curVol').toLocaleString(),'pkgs / day (all lines)'],
+   ['Est. Peak Volume',sum(rows.filter(r=>r.peakVol),'peakVol').toLocaleString(),volBoth.length?`+${Math.round((pkV/curV-1)*100)}% vs current (${volBoth.length} comparable lines)`:'—'],
+   ['Lines Needing Leads',leadsNeeded,'per "NEEDS Leads"'],
+   ['Peak Data Complete',`${complete} / ${rows.length}`,'headcount + volume filled']
+  ];
+  $('kpis').innerHTML=k.map(x=>`<div class="kpi"><div class="l">${x[0]}</div><div class="v">${x[1]}</div><div class="s">${x[2]}</div></div>`).join('');
+
+  pairChart($('chHC'), rows.filter(r=>r.curHC!=null||r.peakHC!=null).slice().sort((a,b)=>((b.peakHC??0)-(b.curHC??0))-((a.peakHC??0)-(a.curHC??0))),'curHC','peakHC');
+  pairChart($('chVol'), rows.filter(r=>r.curVol!=null||r.peakVol!=null).slice().sort((a,b)=>(b.peakVol??b.curVol??0)-(a.peakVol??a.curVol??0)),'curVol','peakVol','no');
+  pairChart($('chHrs'), rows.filter(r=>r.curHrs!=null||r.peakHrs!=null).slice().sort((a,b)=>(b.peakHrs??b.curHrs??0)-(a.peakHrs??a.curHrs??0)),'curHrs','peakHrs','no');
+
+  // Site rollup
+  const bySite={};
+  rows.forEach(r=>{(bySite[r.site]??=[]).push(r)});
+  $('tSite').innerHTML='<tr><th>Site</th><th class="n">Lines</th><th class="n">Cur HC</th><th class="n">Peak HC</th><th class="n">Cur Vol</th><th class="n">Peak Vol</th><th>Peak Range</th></tr>'+
+   Object.entries(bySite).map(([s,a])=>{
+     const pr=a.filter(r=>r.peakHC!=null), pv=a.filter(r=>r.peakVol!=null);
+     return `<tr><td><b>${esc(s.replace(/^Site\s+/,''))}</b></td><td class="n">${a.length}</td><td class="n">${fmt(a.some(r=>r.curHC!=null)?sum(a,'curHC'):null)}</td><td class="n">${fmt(pr.length?sum(pr,'peakHC'):null)}</td><td class="n">${fmt(a.some(r=>r.curVol!=null)?sum(a,'curVol'):null)}</td><td class="n">${fmt(pv.length?sum(pv,'peakVol'):null)}</td><td>${esc(a.find(r=>r.peakRange)?.peakRange||'')}</td></tr>`}).join('');
+
+  // Leads
+  const lr=rows.filter(r=>r.needLeads||r.curLeads!=null||r.keyRole||r.keyRoleN!=null);
+  $('tLeads').innerHTML='<tr><th>Line</th><th class="n">Cur Leads</th><th>Needs Leads</th><th>Key Role</th><th class="n"># Key</th></tr>'+
+   (lr.map(r=>`<tr><td>${label(r)}</td><td class="n">${fmt(r.curLeads)}</td><td style="white-space:normal;min-width:200px">${esc(r.needLeads)||'<span class="empty">—</span>'}</td><td>${esc(r.keyRole)||'<span class="empty">—</span>'}</td><td class="n">${fmt(r.keyRoleN)}</td></tr>`).join('')||'<tr><td colspan="5">None</td></tr>');
+
+  // Gaps
+  const miss=rows.map(r=>{
+    const m=[];
+    if(r.curHC==null)m.push('current HC');
+    if(r.peakHC==null)m.push('peak HC');
+    if(r.peakVol==null)m.push('peak volume');
+    if(r.peakHrs==null)m.push('peak hours');
+    if(!r.peakRange)m.push('peak dates');
+    return {r,m};
+  }).filter(x=>x.m.length).sort((a,b)=>b.m.length-a.m.length);
+  $('gaps').innerHTML=miss.length?'<ul>'+miss.map(x=>`<li>${label(x.r)} — <span class="tag ${x.m.length>=4?'warn':''}">${x.m.join(', ')}</span></li>`).join('')+'</ul>':'<span class="tag ok">All lines complete</span>';
+
+  // Full table
+  const cols=[['site','Site'],['dept','Dept'],['shiftRange','Shift'],['days','Days'],['curHC','Cur HC',1],['peakHC','Peak HC',1],['curVol','Cur Vol',1],['peakVol','Peak Vol',1],['curHrs','Cur Hrs',1],['peakHrs','Peak Hrs',1],['curLeads','Cur Leads',1],['needLeads','Needs Leads'],['keyRole','Key Role'],['firstSat','1st Sat'],['peakRange','Peak Range'],['callOffice','Call-Office'],['callClient','Call-Client'],['we','WE Date']];
+  let sorted=rows.slice();
+  if(sortKey)sorted.sort((a,b)=>{const x=a[sortKey],y=b[sortKey];if(x==null||x==='')return 1;if(y==null||y==='')return -1;return (x>y?1:x<y?-1:0)*sortDir});
+  $('tAll').innerHTML='<tr>'+cols.map(c=>`<th class="${c[2]?'n':''}" data-k="${c[0]}">${c[1]}${sortKey===c[0]?(sortDir>0?' ▲':' ▼'):''}</th>`).join('')+'</tr>'+
+   sorted.map(r=>'<tr>'+cols.map(c=>c[2]?`<td class="n">${fmt(r[c[0]])}</td>`:`<td>${esc(r[c[0]])||'<span class="empty">—</span>'}</td>`).join('')+'</tr>').join('');
+  $('tAll').querySelectorAll('th').forEach(th=>th.onclick=()=>{const k=th.dataset.k;sortDir=sortKey===k?-sortDir:1;sortKey=k;render()});
+}
+
+/* ===== CSV DROP (refresh data) ===== */
+function parseCSV(t){
+  const out=[];let row=[],cur='',q=false;
+  for(let i=0;i<t.length;i++){const c=t[i];
+    if(q){if(c=='"'){if(t[i+1]=='"'){cur+='"';i++}else q=false}else cur+=c}
+    else if(c=='"')q=true; else if(c==','){row.push(cur);cur=''}
+    else if(c=='\n'||c=='\r'){if(c=='\r'&&t[i+1]=='\n')i++;row.push(cur);out.push(row);row=[];cur=''}
+    else cur+=c}
+  if(cur||row.length){row.push(cur);out.push(row)}
+  return out;
+}
+function fromCSV(text){
+  const rows=parseCSV(text);
+  const hi=rows.findIndex(r=>r.some(c=>/^title$/i.test(c.trim())));
+  if(hi<0)throw new Error('Header row with "Title" not found');
+  const h=rows[hi].map(x=>x.trim().toLowerCase());
+  const ix=n=>h.indexOf(n.toLowerCase());
+  const g=(r,n)=>{const i=ix(n);return i<0?'':(r[i]||'').trim()};
+  const n=(r,k)=>{const v=g(r,k).replace(/,/g,'');return v===''||isNaN(v)?null:Number(v)};
+  return rows.slice(hi+1).filter(r=>g(r,'Link to Site')).map(r=>{
+    const title=g(r,'Title').split('/');
+    return {site:g(r,'Link to Site'),dept:g(r,'Department'),shift:title[2]||'',callOffice:g(r,'Peak Calls-Office'),callClient:g(r,'Peak Calls-Client'),
+      curHC:n(r,'Current Head Count'),peakHC:n(r,'PEAK Active Headcount (heaviest day)'),curVol:n(r,'CURRENT VOLUME Number'),peakVol:n(r,'Estimated Peak Volume'),
+      curHrs:n(r,'current hrs'),peakHrs:n(r,'Estimated Peak Hours'),curLeads:n(r,'CURRENT Leads'),needLeads:g(r,'NEEDS Leads'),keyRole:g(r,'Key Roles'),
+      keyRoleN:n(r,'Number OF Key Roles'),firstSat:g(r,'First Weekend Saturday'),shiftRange:g(r,'Shift Time Range'),days:g(r,'Days Working'),we:g(r,'WE DATE'),peakRange:g(r,'Peak Range Date'),_k:g(r,'Link to Site')+'|'+g(r,'Department')};
+  });
+}
+['dragenter','dragover'].forEach(e=>window.addEventListener(e,ev=>{ev.preventDefault();$('drop').style.display='flex'}));
+['dragleave','drop'].forEach(e=>window.addEventListener(e,ev=>{ev.preventDefault();if(e==='drop'||ev.target===$('drop'))$('drop').style.display='none'}));
+window.addEventListener('drop',async ev=>{
+  const f=ev.dataTransfer.files[0];if(!f)return;
+  if(curTab==='nh'){nhLoadFile(f);return}
+  try{DATA=fromCSV(await f.text());$('meta').textContent=`Loaded ${f.name} · ${DATA.length} lines · Peak window Nov 27 – Dec 23`;fillFilters();render();renderEdit()}
+  catch(e){alert('Could not read file: '+e.message)}
+});
+
+/* ===== LIVE SYNC FROM GOOGLE SHEET ===== */
+const SHEET_ID='1-OpgL-ptFUk1GmJha6h9MMXyaay1kxRIB_TfW0mgOas';
+const store={get:k=>{try{return localStorage.getItem(k)}catch(e){return null}},set:(k,v)=>{try{localStorage.setItem(k,v)}catch(e){}}};
+const FIELDS=[['site','Site'],['dept','Dept'],['shiftRange','Shift'],['days','Days'],['curHC','Cur HC',1],['peakHC','Peak HC',1],['curVol','Cur Vol',1],['peakVol','Peak Vol',1],['curHrs','Cur Hrs',1],['peakHrs','Peak Hrs',1],['curLeads','Cur Leads',1],['needLeads','Needs Leads'],['keyRole','Key Role'],['keyRoleN','# Key',1],['firstSat','1st Sat'],['peakRange','Peak Range'],['callOffice','Call-Office'],['callClient','Call-Client'],['we','WE Date']];
+const NUMF=new Set(FIELDS.filter(f=>f[2]).map(f=>f[0]));
+const toNum=v=>{v=String(v??'').trim().replace(/,/g,'');return v===''||isNaN(v)?null:Number(v)};
+const fromObj=o=>{const r={shift:(o.title||'').split('/')[2]||''};FIELDS.forEach(f=>{const k=f[0];r[k]=NUMF.has(k)?toNum(o[k]):String(o[k]??'').trim()});r._k=r.site+'|'+r.dept;return r};
+const setStatus=t=>{$('editStatus').textContent=t};
+
+async function syncSheet(){
+  const btn=$('btnSync'); btn.textContent='Syncing…'; btn.disabled=true;
+  const su=store.get('peakScriptUrl'); let ok=false, err='';
+  const urls=[];
+  if(su)urls.push({u:su+(su.includes('?')?'&':'?')+'token='+encodeURIComponent(store.get('peakToken')||''),json:true});
+  const cu=store.get('peakCsvUrl'); if(cu)urls.push({u:cu});
+  urls.push({u:`https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&headers=0`});
+  for(const x of urls){
+    try{
+      const res=await fetch(x.u,{cache:'no-store'});
+      if(!res.ok)throw new Error(res.status);
+      let d;
+      if(x.json){const j=await res.json();if(j.error)throw new Error(j.error);d=j.rows.map(fromObj)}
+      else d=fromCSV(await res.text());
+      if(!d.length)throw new Error('no rows');
+      DATA=d; ok=true; break;
+    }catch(e){err=String(e.message||e)}
+  }
+  btn.textContent='⟳ Sync from Google Sheet'; btn.disabled=false;
+  if(ok){
+    $('meta').textContent=`Synced ${new Date().toLocaleString()} · ${DATA.length} lines · Peak window Nov 27 – Dec 23`;
+    fillFilters(); render(); renderEdit(); setStatus(`Pulled ${DATA.length} lines from the sheet`);
+  }else if(!su){
+    const u=prompt('Could not read the sheet directly.\n\nIn Google Sheets: File > Share > Publish to web > choose the tab > CSV > Publish, then paste that link here (it is remembered on this browser). Or set up the Apps Script on the Edit Data tab:');
+    if(u){store.set('peakCsvUrl',u.trim());return syncSheet();}
+  }else setStatus('Sync failed: '+err);
+}
+
+/* ===== TABS + EDIT GRID ===== */
+let curTab='dash';
+function showTab(t){
+  curTab=t;
+  $('viewDash').style.display=t==='dash'?'':'none';
+  $('viewEdit').style.display=t==='edit'?'':'none';
+  $('viewNH').style.display=t==='nh'?'':'none';
+  $('tabDash').classList.toggle('on',t==='dash');$('tabEdit').classList.toggle('on',t==='edit');$('tabNH').classList.toggle('on',t==='nh');
+  document.querySelector('.tools').style.display=t==='dash'?'':'none';
+  if(t==='nh')nhRender();
+}
+$('tabDash').onclick=()=>showTab('dash');$('tabEdit').onclick=()=>showTab('edit');$('tabNH').onclick=()=>showTab('nh');
+
+function updDirty(){const n=DATA.filter(r=>r._d).length;$('dirtyCount').innerHTML=n?`<span class="tag warn">${n} unsaved line${n>1?'s':''}</span>`:'';}
+function renderEdit(){
+  $('tEdit').innerHTML='<tr><th></th>'+FIELDS.map(f=>`<th>${f[1]}</th>`).join('')+'</tr>'+
+   DATA.map((r,i)=>`<tr><td>${r._k?'':`<button data-del="${i}" title="Remove new line">✕</button>`}</td>`+FIELDS.map(f=>`<td><input data-i="${i}" data-k="${f[0]}" value="${esc(r[f[0]]??'')}" style="width:${f[0]==='needLeads'?220:f[0]==='site'?190:f[0]==='dept'?170:f[2]?72:100}px"></td>`).join('')+'</tr>').join('');
+  updDirty();
+}
+let rt;
+$('tEdit').addEventListener('input',e=>{
+  const el=e.target; if(!el.dataset.k)return;
+  const r=DATA[el.dataset.i],k=el.dataset.k;
+  let v=el.value;
+  if(NUMF.has(k)){const n=toNum(v);if(v.trim()!==''&&n===null){el.classList.add('bad');return}el.classList.remove('bad');v=n}
+  r[k]=v;r._d=true;el.classList.add('dirty');updDirty();
+  clearTimeout(rt);rt=setTimeout(render,250);
+});
+$('tEdit').addEventListener('change',()=>fillFilters());
+$('tEdit').addEventListener('click',e=>{const i=e.target.dataset.del;if(i==null)return;DATA.splice(+i,1);fillFilters();render();renderEdit()});
+$('btnAdd').onclick=()=>{const r={shift:'',_k:'',_d:true};FIELDS.forEach(f=>r[f[0]]=NUMF.has(f[0])?null:'');r.site='New Site';r.callOffice='Monday';DATA.push(r);fillFilters();render();renderEdit();setStatus('Added a line at the bottom — fill it in, then push');};
+$('btnPull').onclick=()=>{if(DATA.some(r=>r._d)&&!confirm('Pulling will discard unsaved edits. Continue?'))return;syncSheet()};
+
+$('btnPush').onclick=async()=>{
+  const url=store.get('peakScriptUrl');
+  if(!url){setStatus('Set the Apps Script URL in the setup box below first.');return}
+  const dirty=DATA.filter(r=>r._d);
+  if(!dirty.length){setStatus('No changes to push.');return}
+  const bad=dirty.find(r=>!r.site||!r.dept);
+  if(bad){setStatus('Every line needs a Site and a Department before pushing.');return}
+  setStatus('Pushing '+dirty.length+' line(s)…');$('btnPush').disabled=true;
+  const snap=dirty.map(r=>({k:r.site+'|'+r.dept,r:{...r}}));
+  const payload={token:store.get('peakToken')||'',rows:dirty.map(r=>{const o={key:r._k||'',shift:r.shift};FIELDS.forEach(f=>o[f[0]]=r[f[0]]);return o})};
+  try{
+    await fetch(url,{method:'POST',mode:'no-cors',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(payload)});
+    await syncSheet();
+    if(DATA.some(r=>r._d)){setStatus('Push sent, but could not re-read the sheet to confirm. Check URL/token/deployment.');}
+    else{
+      const miss=snap.filter(s=>{const n=DATA.find(r=>r.site+'|'+r.dept===s.k);return !n||[...NUMF].some(f=>(n[f]??null)!==(s.r[f]??null))}).length;
+      setStatus(miss?`Pushed, but ${miss} line(s) don't match the sheet. Check the Apps Script token/deployment.`:`✓ Saved ${snap.length} line(s) to the Google Sheet`);
+    }
+  }catch(e){setStatus('Push failed: '+e.message)}
+  $('btnPush').disabled=false;
+};
+
+/* setup box */
+const GS_CODE=`const TOKEN = 'change-me';
+const SHEET_NAME = ''; // blank = first tab
+const MAP = {site:'Link to Site',dept:'Department',callOffice:'Peak Calls-Office',callClient:'Peak Calls-Client',curHC:'Current Head Count',peakHC:'PEAK Active Headcount (heaviest day)',curVol:'CURRENT VOLUME Number',peakVol:'Estimated Peak Volume',curHrs:'current hrs',peakHrs:'Estimated Peak Hours',curLeads:'CURRENT Leads',needLeads:'NEEDS Leads',keyRole:'Key Roles',keyRoleN:'Number OF Key Roles',firstSat:'First Weekend Saturday',shiftRange:'Shift Time Range',days:'Days Working',we:'WE DATE',peakRange:'Peak Range Date'};
+
+function sheet_() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  return SHEET_NAME ? ss.getSheetByName(SHEET_NAME) : ss.getSheets()[0];
+}
+function json_(o) {
+  return ContentService.createTextOutput(JSON.stringify(o)).setMimeType(ContentService.MimeType.JSON);
+}
+function layout_(vals) {
+  const hr = vals.findIndex(function(r){ return String(r[0]).trim().toLowerCase() === 'title'; });
+  if (hr < 0) throw new Error('Header row with Title not found');
+  const cols = {};
+  vals[hr].forEach(function(h, i){ cols[String(h).trim().toLowerCase()] = i; });
+  return {hr: hr, cols: cols};
+}
+function doGet(e) {
+  if ((e.parameter.token || '') !== TOKEN) return json_({error: 'bad token'});
+  const vals = sheet_().getDataRange().getDisplayValues();
+  const L = layout_(vals);
+  const rows = [];
+  for (let r = L.hr + 1; r < vals.length; r++) {
+    const o = {title: vals[r][0]};
+    for (const k in MAP) { const c = L.cols[MAP[k].toLowerCase()]; o[k] = c === undefined ? '' : vals[r][c]; }
+    if (o.site) rows.push(o);
+  }
+  return json_({rows: rows});
+}
+function doPost(e) {
+  const lock = LockService.getScriptLock();
+  lock.waitLock(20000);
+  try {
+    const body = JSON.parse(e.postData.contents);
+    if ((body.token || '') !== TOKEN) return json_({error: 'bad token'});
+    const sh = sheet_();
+    const vals = sh.getDataRange().getDisplayValues();
+    const L = layout_(vals);
+    const c1 = L.cols[MAP.site.toLowerCase()], c2 = L.cols[MAP.dept.toLowerCase()];
+    let updated = 0, added = 0;
+    body.rows.forEach(function(row) {
+      let target = -1;
+      for (let r = L.hr + 1; r < vals.length; r++) {
+        if ((vals[r][c1] + '|' + vals[r][c2]) === row.key) { target = r; break; }
+      }
+      if (target < 0) {
+        target = vals.length;
+        const blank = [];
+        for (let i = 0; i < vals[L.hr].length; i++) blank.push('');
+        blank[0] = row.site + '/' + row.dept + '/' + (row.shift || '');
+        vals.push(blank);
+        sh.getRange(target + 1, 1, 1, blank.length).setValues([blank]);
+        added++;
+      } else { updated++; }
+      for (const k in MAP) {
+        const c = L.cols[MAP[k].toLowerCase()];
+        if (c === undefined) continue;
+        const nv = (row[k] === null || row[k] === undefined) ? '' : String(row[k]);
+        if (nv !== String(vals[target][c])) {
+          sh.getRange(target + 1, c + 1).setValue(nv === '' ? '' : (isNaN(nv) ? nv : Number(nv)));
+          vals[target][c] = nv;
+        }
+      }
+    });
+    return json_({ok: true, updated: updated, added: added});
+  } finally {
+    lock.releaseLock();
+  }
+}`;
+$('gsCode').textContent=GS_CODE;
+$('btnCopy').onclick=async()=>{try{await navigator.clipboard.writeText(GS_CODE);$('btnCopy').textContent='Copied ✓'}catch(e){const r=document.createRange();r.selectNodeContents($('gsCode'));getSelection().removeAllRanges();getSelection().addRange(r);$('btnCopy').textContent='Selected — press Ctrl+C'}};
+
+/* ===================== NEW HIRES TAB ===================== */
+const NH_DEF={acct:'sz7b6s9h',table:'65a6a9106d8f8910fdeae362'};
+const NH_MAPS={
+ status:{'uSp4s':'SCHEDULED TO START','complete':'STARTED','eFl2q':'Sent Home (Staffing)','A8XvB':'Already Active (Not New)','wms09':'DNR','e1314c5a-6847-49f2-a2fa-9219f4356bd2':'Sent Home (Late)','ready_for_review':'No Show I','JAK5w':'No Show II','5QZkV':'Now Show III','cu3Pl':'No Show (DNU)','zYFmY':'Bad BG','FB983':'NO SHOW MISSING ID'},
+ shift:{'6AMMH':'AM','JtRgf':'PM','ee4wq':'ARCHIVE','6TYco':'AM Weekend','T5qRr':'MID Weekend'},
+ pick:{'oVDDa':'1.0','eSCLa':'3.0','GSabQ':'4.0','HsUqk':'5.0','ckeN9':'6.0','7VOlP':'7.0','NelWC':'10.0','6Z3uU':'12.0','HibDk':'13.0','vxLWm':'15.0','9y1Pv':'18.0','DzhLI':'19.0','8EpBU':'23.0','19Mv8':'26.0','OdR8b':'26.5','StVhF':'5.5','mi7DE':'13.5','2VxBq':'101.5'},
+ type:{'UxiyX':'New Hire','DME0Q':'Returner'},
+ ss:{'8dLlN':'STARTED','KsiUY':'NO SHOW'}
+};
+const NH_SITES={'3.0':'Missouri','4.0':'New York','5.0':'South New Jersey','6.0':'Ohio','7.0':'Florida','10.0':'Illinois','12.0':'Washington','13.0':'Atlanta','15.0':'North Carolina','18.0':'Tennessee','19.0':'North Texas','23.0':'North New Jersey','26.0':'South Carolina','101.5':'roadies'};
+const NH_SLUG={status:'status',shift:'sda8290dd7',pick:'sc418c1d53',type:'s0d3ee7089',ss:'sd0332b1b4'};
+const NH={rows:[],site:'',shift:'',from:'',to:'',sched:false,sample:false};
+const NH_COL={started:'#2a78d6',noshow:'#eb6834',sched:'#a8a6a0'};
+const isoToday=()=>new Date().toLocaleDateString('en-CA');
+const addDays=(iso,n)=>{const d=new Date(iso+'T00:00:00Z');d.setUTCDate(d.getUTCDate()+n);return d.toISOString().slice(0,10)};
+const weekEnd=iso=>{const d=new Date(iso+'T00:00:00Z');d.setUTCDate(d.getUTCDate()+(6-d.getUTCDay()+7)%7);return d.toISOString().slice(0,10)};
+const mdOf=iso=>iso.slice(5,7)+'/'+iso.slice(8,10);
+const DOW=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+const dowOf=iso=>DOW[new Date(iso+'T00:00:00Z').getUTCDay()];
+const pct=(a,b)=>b?Math.round(a/b*1000)/10:null;
+
+function nhLab(m,v){
+  if(v==null||v==='')return '';
+  if(Array.isArray(v))v=v[0];
+  if(v&&typeof v==='object')v=v.label!==undefined?v.label:(v.value!==undefined?v.value:'');
+  return (m&&m[v])||String(v);
+}
+function nhGroup(st,ss){
+  const s=(st||'').toLowerCase();
+  if(/no\s*show|now\s*show/.test(s))return 'No Show';
+  if(/^started/.test(s))return 'Started';
+  if(/scheduled/.test(s))return 'Scheduled';
+  if(s)return 'Other';
+  const t=(ss||'').toLowerCase();
+  if(/no\s*show/.test(t))return 'No Show';
+  if(/started/.test(t))return 'Started';
+  return 'Other';
+}
+function nhSiteOf(title,pick){
+  const m=title.match(/^(Site\s+[\d.]+\s*-\s*.+?)\s*-\s/);
+  if(m)return {site:m[1].trim(),name:title.slice(m[0].length).trim()};
+  return {site:pick?('Site '+pick+(NH_SITES[pick]?' - '+NH_SITES[pick]:'')):'Unassigned',name:title.replace(/^\s*-\s*/,'').trim()};
+}
+const siteNum=x=>{const m=String(x).match(/Site\s+([\d.]+)/);return m?parseFloat(m[1]):9999};
+function nhSlim(x){return {title:x.title,s87d5a2ff3:x.s87d5a2ff3,sda8290dd7:x.sda8290dd7,status:x.status,sc418c1d53:x.sc418c1d53,s0d3ee7089:x.s0d3ee7089,sd0332b1b4:x.sd0332b1b4}}
+function nhNorm(r,maps){
+  maps=maps||NH_MAPS;
+  const dv=r.s87d5a2ff3, dd=dv&&(dv.date||(dv.from_date&&dv.from_date.date));
+  const date=dd?String(dd).slice(0,10):'';
+  const stv=r.status&&typeof r.status==='object'&&!Array.isArray(r.status)&&r.status.value!==undefined&&r.status.label===undefined?r.status.value:r.status;
+  const status=nhLab(maps.status,stv), ss=nhLab(maps.ss,r.sd0332b1b4);
+  const so=nhSiteOf(String(r.title||''),nhLab(maps.pick,r.sc418c1d53));
+  return {date,week:date?weekEnd(date):'',site:so.site,name:so.name,shift:nhLab(maps.shift,r.sda8290dd7)||'(none)',status:status||ss,group:nhGroup(status,ss),type:nhLab(maps.type,r.s0d3ee7089)};
+}
+function nhMapsFrom(structure){
+  const maps={};Object.keys(NH_MAPS).forEach(k=>maps[k]=Object.assign({},NH_MAPS[k]));
+  (structure||[]).forEach(f=>{
+    for(const k in NH_SLUG){ if(f.slug===NH_SLUG[k]&&f.params&&Array.isArray(f.params.choices)){f.params.choices.forEach(c=>{maps[k][c.value]=String(c.label).trim()})} }
+  });
+  return maps;
+}
+
+/* ---- loading ---- */
+function nhSet(rows,sample){
+  NH.rows=rows.filter(r=>r.date);NH.sample=!!sample;
+  NH.site='';NH.shift='';
+  const t=isoToday(); let from=addDays(t,-55);
+  if(!NH.rows.some(r=>r.date>=from&&r.date<=t)){from='';NH.to=''}else NH.to=t;
+  NH.from=from;
+  nhFill();nhRender();
+}
+function nhStatusMsg(t){$('nhStatus').textContent=t}
+function parseDateLoose(v){
+  v=String(v||'').trim();if(!v)return '';
+  v=v.split(/\s+-\s+|\s+to\s+/)[0];
+  if(/^\d{4}-\d{2}-\d{2}/.test(v))return v.slice(0,10);
+  const d=new Date(v);if(isNaN(d))return '';
+  return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+}
+function nhFromCSV(text){
+  const rows=parseCSV(text);
+  const hi=rows.findIndex(r=>r.some(c=>/^title$/i.test(c.trim())));
+  if(hi<0)throw new Error('No Title column found');
+  const h=rows[hi].map(x=>x.trim().toLowerCase());
+  const ix=(...n)=>{for(const a of n){const i=h.indexOf(a);if(i>=0)return i}return -1};
+  const iT=ix('title'),iD=ix('start date'),iS=ix('shift'),iSt=ix('status (restored)','status'),iP=ix('pick site'),iTy=ix('type of associate'),iSS=ix('single select');
+  if(iD<0)throw new Error('No "Start Date" column found');
+  return rows.slice(hi+1).filter(r=>(r[iT]||'').trim()).map(r=>{
+    const status=(iSt>=0?r[iSt]:'')||'',ss=(iSS>=0?r[iSS]:'')||'';
+    const so=nhSiteOf((r[iT]||'').trim(),iP>=0?(r[iP]||'').trim():'');
+    const date=parseDateLoose(r[iD]);
+    return {date,week:date?weekEnd(date):'',site:so.site,name:so.name,shift:(iS>=0&&(r[iS]||'').trim())||'(none)',status:status.trim()||ss.trim(),group:nhGroup(status,ss),type:iTy>=0?(r[iTy]||'').trim():''};
+  });
+}
+async function nhLoadFile(f){
+  try{
+    const t=await f.text();let rows;
+    if(/\.json$/i.test(f.name)||/^\s*[\[{]/.test(t)){
+      const j=JSON.parse(t);const items=Array.isArray(j)?j:(j.items||[]);
+      rows=items.map(x=>nhNorm(nhSlim(x)));
+    }else rows=nhFromCSV(t);
+    nhSet(rows,false);nhStatusMsg(`Loaded ${f.name} · ${NH.rows.length} records`);
+  }catch(e){alert('Could not read file: '+e.message)}
+}
+
+async function nhDirect(cfg){
+  const H={'Authorization':'Token '+cfg.tok,'ACCOUNT-ID':cfg.acct,'Content-Type':'application/json'};
+  const base='https://app.smartsuite.com/api/v1/applications/'+cfg.table;
+  let maps=NH_MAPS;
+  try{const s=await fetch(base+'/',{headers:H});if(s.ok){const j=await s.json();maps=nhMapsFrom(j.structure)}}catch(e){if(e instanceof TypeError)throw e}
+  const items=[];let offset=0,total=Infinity;
+  while(offset<total){
+    const r=await fetch(base+'/records/list/?limit=1000&offset='+offset,{method:'POST',headers:H,body:JSON.stringify({sort:[],filter:{operator:'and',fields:[]}})});
+    if(!r.ok)throw new Error('SmartSuite replied '+r.status);
+    const j=await r.json();const got=j.items||[];
+    got.forEach(x=>items.push(nhSlim(x)));
+    total=(j.total!=null)?j.total:items.length;
+    if(!got.length)break;offset+=got.length;
+    nhStatusMsg('Loaded '+items.length+(isFinite(total)?' of '+total:'')+'…');
+  }
+  return {items,maps};
+}
+async function nhSync(){
+  const btn=$('nhSync');btn.disabled=true;btn.textContent='Syncing…';
+  const tok=store.get('nhTok')||'',su=store.get('peakScriptUrl'),stok=store.get('peakToken')||'';
+  const cfg={acct:store.get('nhAcct')||NH_DEF.acct,table:store.get('nhTable')||NH_DEF.table,tok};
+  let got=null;const errs=[];
+  if(tok){try{got=await nhDirect(cfg)}catch(e){errs.push('Direct: '+(e instanceof TypeError?'blocked by the browser (CORS)':e.message))}}
+  if(!got&&su){
+    try{
+      const r=await fetch(su+(su.includes('?')?'&':'?')+'action=newhires&token='+encodeURIComponent(stok),{cache:'no-store'});
+      const j=await r.json();if(j.error)throw new Error(j.error);
+      got={items:j.items||[],maps:NH_MAPS};
+    }catch(e){errs.push('Apps Script: '+(e instanceof TypeError?'could not reach the web app':e.message))}
+  }
+  btn.disabled=false;btn.textContent='⟳ Sync from SmartSuite';
+  if(got){nhSet(got.items.map(x=>nhNorm(x,got.maps)),false);nhStatusMsg(`Synced ${new Date().toLocaleTimeString()} · ${NH.rows.length} records`)}
+  else{
+    nhStatusMsg(errs.length?errs.join(' | '):'Not connected yet — open ⚙ Connection.');
+    $('nhConn').style.display='';
+  }
+}
+
+/* sample data (clearly flagged) */
+function nhSampleData(){
+  let seed=7;const rnd=()=>{seed=(seed*1664525+1013904223)%4294967296;return seed/4294967296};
+  const sites=['Site 5.0 - South New Jersey','Site 6.0 - Ohio','Site 7.0 - Florida','Site 18.0 - Tennessee','Site 23.0 - North New Jersey','Site 15.0 - North Carolina'];
+  const shifts=['AM','PM','MID Weekend'];const out=[];const t=isoToday();
+  for(let d=-90;d<=6;d++){
+    const day=addDays(t,d);const dow=new Date(day+'T00:00:00Z').getUTCDay();
+    sites.forEach(si=>{
+      const n=Math.round((dow===0||dow===6?1:4)*rnd()*2);
+      for(let k=0;k<n;k++){
+        const sh=shifts[Math.floor(rnd()*3)],r=rnd();
+        let st=d>0?'SCHEDULED TO START':r<0.62?'STARTED':r<0.88?'No Show I':r<0.94?'NO SHOW MISSING ID':'Sent Home (Late)';
+        out.push({date:day,week:weekEnd(day),site:si,name:'Sample '+(out.length+1),shift:sh,status:st,group:nhGroup(st,''),type:'New Hire'});
+      }
+    });
+  }
+  return out;
+}
+
+/* ---- filters ---- */
+function nhFill(){
+  const sites=[...new Set(NH.rows.map(r=>r.site))].sort((a,b)=>siteNum(a)-siteNum(b)||a.localeCompare(b));
+  const shifts=[...new Set(NH.rows.map(r=>r.shift))].sort();
+  $('nhSite').innerHTML='<option value="">All sites</option>'+sites.map(x=>`<option>${esc(x)}</option>`).join('');
+  $('nhShift').innerHTML='<option value="">All shifts</option>'+shifts.map(x=>`<option>${esc(x)}</option>`).join('');
+  $('nhSite').value=NH.site;$('nhShift').value=NH.shift;$('nhFrom').value=NH.from;$('nhTo').value=NH.to;$('nhSched').checked=NH.sched;
+}
+function nhRows(){return NH.rows.filter(r=>(!NH.site||r.site===NH.site)&&(!NH.shift||r.shift===NH.shift)&&(!NH.from||r.date>=NH.from)&&(!NH.to||r.date<=NH.to))}
+function cnt(rows){const c={Started:0,'No Show':0,Scheduled:0,Other:0};rows.forEach(r=>c[r.group]++);return c}
+
+/* ---- chart ---- */
+const tip=$('nhTip');
+function niceStep(x){const p=Math.pow(10,Math.floor(Math.log10(x||1)));const f=x/p;return (f<=1?1:f<=2?2:f<=5?5:10)*p}
+function nhChart(el,cats,series,o){
+  if(!cats.length){el.innerHTML='<div class="nhempty">No data in this range.</div>';return}
+  const W=Math.max(el.clientWidth||760,320),L=40,R=10,T=18,B=40,H=260,n=cats.length,k=series.length;
+  const slot=Math.max(o.minSlot,(W-L-R)/n),TW=Math.ceil(L+R+slot*n);
+  const max=Math.max(1,...series.flatMap(s=>s.vals));
+  const step=niceStep(max/4),top=Math.ceil(max/step)*step;
+  const y=v=>T+(H-T-B)*(1-v/top),base=y(0);
+  const bw=Math.max(3,Math.min(24,(slot-8)/k-2)),gw=k*bw+(k-1)*2;
+  let g='';
+  for(let v=0;v<=top+1e-9;v+=step){g+=`<line x1="${L}" x2="${TW-R}" y1="${y(v)}" y2="${y(v)}" stroke="#e4ded4" stroke-width="1"/><text x="${L-6}" y="${y(v)+4}" text-anchor="end" font-size="11" fill="#6f675c">${Number.isInteger(v)?v:v.toFixed(1)}</text>`}
+  const lblStep=Math.max(1,Math.ceil(34/slot));
+  let bars='',hits='',xl='';
+  cats.forEach((c,i)=>{
+    const x0=L+i*slot+(slot-gw)/2;
+    series.forEach((s,j)=>{
+      const v=s.vals[i];if(!v)return;
+      const bx=x0+j*(bw+2),by=y(v),h=base-by,r=Math.min(4,h);
+      bars+=`<path d="M${bx},${base}V${by+r}Q${bx},${by} ${bx+r},${by}H${bx+bw-r}Q${bx+bw},${by} ${bx+bw},${by+r}V${base}Z" fill="${s.color}"/>`;
+      if(slot>=34&&bw>=9)bars+=`<text x="${bx+bw/2}" y="${by-4}" text-anchor="middle" font-size="10" fill="#1f1a14">${v}</text>`;
+    });
+    if(i%lblStep===0)xl+=`<text x="${L+i*slot+slot/2}" y="${H-B+15}" text-anchor="middle" font-size="11" fill="#1f1a14">${c.label}</text><text x="${L+i*slot+slot/2}" y="${H-B+28}" text-anchor="middle" font-size="10" fill="#6f675c">${c.sub}</text>`;
+    hits+=`<rect class="hit" data-i="${i}" x="${L+i*slot}" y="${T}" width="${slot}" height="${H-T-B}" fill="transparent"/>`;
+  });
+  el.innerHTML=`<svg width="${TW}" height="${H}" viewBox="0 0 ${TW} ${H}" role="img" aria-label="${o.aria}">${g}<line x1="${L}" x2="${TW-R}" y1="${base}" y2="${base}" stroke="#bdb5a8" stroke-width="1"/>${bars}${xl}${hits}</svg>`;
+  const svg=el.firstChild;
+  svg.onmousemove=e=>{
+    const i=e.target.dataset&&e.target.dataset.i;if(i==null){tip.style.display='none';return}
+    const c=cats[+i];
+    tip.innerHTML=`<b>${c.tip}</b><br>`+series.map(s=>`<span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:${s.color};margin-right:6px"></span>${s.name}: ${s.vals[+i]}`).join('<br>')+(c.rate!=null?`<br>Show rate: ${c.rate}%`:'');
+    tip.style.display='block';tip.style.left=Math.min(e.clientX+14,innerWidth-190)+'px';tip.style.top=(e.clientY+14)+'px';
+  };
+  svg.onmouseleave=()=>{tip.style.display='none'};
+}
+function nhLegend(el,series){el.innerHTML=series.map(s=>`<span><i style="background:${s.color}"></i>${s.name}</span>`).join('')}
+
+function nhRender(){
+  const rows=nhRows(),c=cnt(rows),all=NH.rows.length;
+  $('nhBanner').innerHTML=NH.sample?'<div class="banner">SAMPLE DATA — generated for preview only, not real records. Click Sync or drop an export to replace it.</div>':'';
+  $('nhScriptState').textContent=store.get('peakScriptUrl')?'set':'not set';
+  if(!all){
+    $('nhKpis').innerHTML='';
+    ['nhDay','nhWeek'].forEach(i=>$(i).innerHTML='<div class="nhempty">No data yet. Click <b>Sync from SmartSuite</b>, drop a SmartSuite CSV/JSON export on this tab, or <b>Load sample data</b> to preview.</div>');
+    ['nhDaySub','nhWeekSub','nhLegD','nhLegW','nhDetSub'].forEach(i=>$(i).textContent='');
+    ['nhTSite','nhTShift','nhTDet'].forEach(i=>$(i).innerHTML='');
+    return;
+  }
+  const rate=pct(c.Started,c.Started+c['No Show']);
+  const k=[['Records in view',rows.length.toLocaleString(),`of ${all.toLocaleString()} loaded`],['Started',c.Started.toLocaleString(),'status STARTED'],['No Shows',c['No Show'].toLocaleString(),'No Show I/II/III/DNU/Missing ID'],['Show rate',rate==null?'—':rate+'%','Started ÷ (Started + No Show)'],['Scheduled',c.Scheduled.toLocaleString(),'not yet started'],['Other',c.Other.toLocaleString(),'Sent Home, DNR, Bad BG, Already Active']];
+  $('nhKpis').innerHTML=k.map(x=>`<div class="kpi"><div class="l">${x[0]}</div><div class="v">${x[1]}</div><div class="s">${x[2]}</div></div>`).join('');
+
+  const mkSeries=(vs,vn,vsch)=>{const s=[{name:'Started',color:NH_COL.started,vals:vs},{name:'No Show',color:NH_COL.noshow,vals:vn}];if(NH.sched)s.push({name:'Scheduled',color:NH_COL.sched,vals:vsch});return s};
+  // by day
+  let dmin=NH.from||(rows[0]&&rows.reduce((a,r)=>r.date<a?r.date:a,rows[0].date)),dmax=NH.to||(rows[0]&&rows.reduce((a,r)=>r.date>a?r.date:a,rows[0].date));
+  let days=[],cap=62,note='';
+  if(rows.length){for(let d=dmin;d<=dmax;d=addDays(d,1))days.push(d)}
+  if(days.length>cap){days=days.slice(-cap);note=` Showing the last ${cap} days of the range.`}
+  const byD={};rows.forEach(r=>{(byD[r.date]=byD[r.date]||cnt([]))[r.group]++});
+  const gd=d=>byD[d]||cnt([]);
+  const dS=mkSeries(days.map(d=>gd(d).Started),days.map(d=>gd(d)['No Show']),days.map(d=>gd(d).Scheduled));
+  nhChart($('nhDay'),days.map(d=>{const x=gd(d);return {label:mdOf(d),sub:dowOf(d),tip:dowOf(d)+' '+d,rate:pct(x.Started,x.Started+x['No Show'])}}),dS,{minSlot:30,aria:'Started versus no shows by day'});
+  nhLegend($('nhLegD'),dS);$('nhDaySub').textContent='Started vs No Show for each start date.'+note;
+  // by week
+  const byW={};rows.forEach(r=>{(byW[r.week]=byW[r.week]||cnt([]))[r.group]++});
+  let weeks=[];if(rows.length){const w0=weekEnd(dmin),w1=weekEnd(dmax);for(let w=w0;w<=w1;w=addDays(w,7))weeks.push(w)}
+  const gw=w=>byW[w]||cnt([]);
+  const wS=mkSeries(weeks.map(w=>gw(w).Started),weeks.map(w=>gw(w)['No Show']),weeks.map(w=>gw(w).Scheduled));
+  nhChart($('nhWeek'),weeks.map(w=>{const x=gw(w);return {label:mdOf(w),sub:'WE',tip:'Week ending '+w,rate:pct(x.Started,x.Started+x['No Show'])}}),wS,{minSlot:56,aria:'Started versus no shows by week'});
+  nhLegend($('nhLegW'),wS);$('nhWeekSub').textContent='Each column is a week ending Saturday; hover for the show rate.';
+  // tables
+  const tbl=(el,keyFn,keys,label)=>{
+    const m={};rows.forEach(r=>{(m[keyFn(r)]=m[keyFn(r)]||cnt([]))[r.group]++});
+    el.innerHTML=`<tr><th>${label}</th><th class="n">Started</th><th class="n">No Show</th><th class="n">Show rate</th><th class="n">Scheduled</th><th class="n">Other</th></tr>`+keys.filter(x=>m[x]).map(x=>{const q=m[x],r=pct(q.Started,q.Started+q['No Show']);return `<tr><td><b>${esc(x)}</b></td><td class="n">${q.Started}</td><td class="n">${q['No Show']}</td><td class="n ${r!=null&&r<75?'rate-lo':''}">${r==null?'—':r+'%'}</td><td class="n">${q.Scheduled}</td><td class="n">${q.Other}</td></tr>`}).join('');
+  };
+  tbl($('nhTSite'),r=>r.site,[...new Set(rows.map(r=>r.site))].sort((a,b)=>siteNum(a)-siteNum(b)||a.localeCompare(b)),'Site');
+  tbl($('nhTShift'),r=>r.shift,[...new Set(rows.map(r=>r.shift))].sort(),'Shift');
+  const det=rows.slice().sort((a,b)=>b.date.localeCompare(a.date)||a.site.localeCompare(b.site)).slice(0,300);
+  $('nhDetSub').textContent=`Showing ${det.length} of ${rows.length} (newest first).`;
+  $('nhTDet').innerHTML='<tr><th>Date</th><th>Site</th><th>Shift</th><th>Name</th><th>Status</th><th>Group</th><th>Type</th></tr>'+det.map(r=>`<tr><td>${r.date}</td><td>${esc(r.site)}</td><td>${esc(r.shift)}</td><td>${esc(r.name)}</td><td>${esc(r.status)}</td><td>${r.group}</td><td>${esc(r.type)}</td></tr>`).join('');
+}
+
+/* ---- wiring ---- */
+$('nhSite').onchange=e=>{NH.site=e.target.value;nhRender()};
+$('nhShift').onchange=e=>{NH.shift=e.target.value;nhRender()};
+$('nhFrom').onchange=e=>{NH.from=e.target.value;nhRender()};
+$('nhTo').onchange=e=>{NH.to=e.target.value;nhRender()};
+$('nhSched').onchange=e=>{NH.sched=e.target.checked;nhRender()};
+$('nhRng').onclick=e=>{const w=e.target.dataset&&e.target.dataset.w;if(w==null)return;const t=isoToday();NH.from=+w?addDays(t,-(+w*7-1)):'';NH.to=+w?t:'';$('nhFrom').value=NH.from;$('nhTo').value=NH.to;nhRender()};
+$('nhSync').onclick=nhSync;
+$('nhSample').onclick=()=>{nhSet(nhSampleData(),true);nhStatusMsg('Sample data loaded')};
+$('nhGear').onclick=()=>{const c=$('nhConn');c.style.display=c.style.display==='none'?'':'none'};
+$('nhAcct').value=store.get('nhAcct')||NH_DEF.acct;$('nhTable').value=store.get('nhTable')||NH_DEF.table;$('nhTok').value=store.get('nhTok')||'';
+$('nhAcct').onchange=()=>store.set('nhAcct',$('nhAcct').value.trim());
+$('nhTable').onchange=()=>store.set('nhTable',$('nhTable').value.trim());
+$('nhTok').onchange=()=>store.set('nhTok',$('nhTok').value.trim());
+const NH_GS=`// ===== NEW HIRES add-on for the UPS Peak web app =====
+// 1) In doGet, add as its 2nd line:
+//      if (e.parameter.action === 'newhires') return newHiresRoute_();
+// 2) Project Settings > Script properties > add SMARTSUITE_TOKEN = your SmartSuite API token
+// 3) Deploy > Manage deployments > pencil > Version: New version > Deploy (approve the new permission)
+function newHiresRoute_() {
+  try { return json_({items: newHires_()}); }
+  catch (err) { return json_({error: String(err.message || err)}); }
+}
+function newHires_() {
+  const P = PropertiesService.getScriptProperties();
+  const tok = P.getProperty('SMARTSUITE_TOKEN');
+  if (!tok) throw new Error('Set script property SMARTSUITE_TOKEN');
+  const acct = P.getProperty('SMARTSUITE_ACCOUNT') || 'sz7b6s9h';
+  const table = P.getProperty('SMARTSUITE_TABLE') || '65a6a9106d8f8910fdeae362';
+  const out = [];
+  let offset = 0, total = 1000000000;
+  while (offset < total) {
+    const res = UrlFetchApp.fetch('https://app.smartsuite.com/api/v1/applications/' + table + '/records/list/?limit=1000&offset=' + offset, {
+      method: 'post', contentType: 'application/json', muteHttpExceptions: true,
+      headers: {Authorization: 'Token ' + tok, 'ACCOUNT-ID': acct},
+      payload: JSON.stringify({sort: [], filter: {operator: 'and', fields: []}})
+    });
+    if (res.getResponseCode() !== 200) throw new Error('SmartSuite replied ' + res.getResponseCode());
+    const j = JSON.parse(res.getContentText());
+    const items = j.items || [];
+    items.forEach(function(x) {
+      out.push({title: x.title, s87d5a2ff3: x.s87d5a2ff3, sda8290dd7: x.sda8290dd7, status: x.status, sc418c1d53: x.sc418c1d53, s0d3ee7089: x.s0d3ee7089, sd0332b1b4: x.sd0332b1b4});
+    });
+    total = j.total || out.length;
+    if (!items.length) break;
+    offset += items.length;
+  }
+  return out;
+}
+// Optional: keep the Google Sheet "UPS New Hires Dashboard" fresh. Add script property NH_SHEET_ID, run once, then add an hourly trigger.
+function pullNewHiresToSheet() {
+  const ST = {uSp4s: 'SCHEDULED TO START', complete: 'STARTED', eFl2q: 'Sent Home (Staffing)', A8XvB: 'Already Active (Not New)', wms09: 'DNR', 'e1314c5a-6847-49f2-a2fa-9219f4356bd2': 'Sent Home (Late)', ready_for_review: 'No Show I', JAK5w: 'No Show II', '5QZkV': 'Now Show III', cu3Pl: 'No Show (DNU)', zYFmY: 'Bad BG', FB983: 'NO SHOW MISSING ID'};
+  const SH = {'6AMMH': 'AM', JtRgf: 'PM', ee4wq: 'ARCHIVE', '6TYco': 'AM Weekend', T5qRr: 'MID Weekend'};
+  const TY = {UxiyX: 'New Hire', DME0Q: 'Returner'};
+  const sh = SpreadsheetApp.openById(PropertiesService.getScriptProperties().getProperty('NH_SHEET_ID')).getSheetByName('Data');
+  const rows = newHires_().map(function(x) {
+    const d = x.s87d5a2ff3 && x.s87d5a2ff3.date ? String(x.s87d5a2ff3.date).slice(0, 10) : '';
+    const sv = x.status && x.status.value;
+    return [x.title || '', d ? new Date(d + 'T12:00:00') : '', SH[x.sda8290dd7] || '', ST[sv] || sv || '', TY[x.s0d3ee7089] || ''];
+  });
+  sh.getRange(2, 1, Math.max(sh.getMaxRows() - 1, 1), 5).clearContent();
+  if (rows.length) sh.getRange(2, 1, rows.length, 5).setValues(rows);
+}`;
+$('nhCopyGs').onclick=async()=>{try{await navigator.clipboard.writeText(NH_GS);$('nhCopyGs').textContent='Copied ✓'}catch(e){prompt('Copy this script:',NH_GS)}};
+
+$('inUrl').value=store.get('peakScriptUrl')||'';$('inTok').value=store.get('peakToken')||'';
+$('inUrl').onchange=()=>store.set('peakScriptUrl',$('inUrl').value.trim());
+$('inTok').onchange=()=>store.set('peakToken',$('inTok').value.trim());
+$('btnSync').onclick=syncSheet;
+
+['fSite','fDept'].forEach(i=>$(i).onchange=render);
+$('fText').oninput=render;
+$('btnReset').onclick=()=>{DATA=fresh();$('meta').textContent='Source: Google Sheet "UPS Education - Peak" · Peak window Nov 27 – Dec 23';fillFilters();render();renderEdit()};
+fillFilters();render();renderEdit();
+</script>
+</body>
+</html>
