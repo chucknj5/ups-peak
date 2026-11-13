@@ -356,7 +356,8 @@ window.addEventListener('drop',async ev=>{
 
 /* ===== LIVE SYNC FROM GOOGLE SHEET ===== */
 const SHEET_ID='1-OpgL-ptFUk1GmJha6h9MMXyaay1kxRIB_TfW0mgOas';
-const store={get:k=>{try{return localStorage.getItem(k)}catch(e){return null}},set:(k,v)=>{try{localStorage.setItem(k,v)}catch(e){}}};
+const EMBED={peakScriptUrl:'https://script.google.com/macros/s/AKfycbyyqUBJIC4iuC7MgxT9mBnMb3o9sAWy24vBNgn2t5UWNc5_Yk_ZHn6cN3Y4CGOS_2DtEw/exec',peakToken:'ups-K3XJWzFtm6iSQWjP8NhbqZm_'};
+const store={get:k=>{let v=null;try{v=localStorage.getItem(k)}catch(e){}return v||EMBED[k]||null},set:(k,v)=>{try{localStorage.setItem(k,v)}catch(e){}}};
 const FIELDS=[['site','Site'],['dept','Dept'],['shiftRange','Shift'],['days','Days'],['curHC','Cur HC',1],['peakHC','Peak HC',1],['curVol','Cur Vol',1],['peakVol','Peak Vol',1],['curHrs','Cur Hrs',1],['peakHrs','Peak Hrs',1],['curLeads','Cur Leads',1],['needLeads','Needs Leads'],['keyRole','Key Role'],['keyRoleN','# Key',1],['firstSat','1st Sat'],['peakRange','Peak Range'],['callOffice','Call-Office'],['callClient','Call-Client'],['we','WE Date']];
 const NUMF=new Set(FIELDS.filter(f=>f[2]).map(f=>f[0]));
 const toNum=v=>{v=String(v??'').trim().replace(/,/g,'');return v===''||isNaN(v)?null:Number(v)};
