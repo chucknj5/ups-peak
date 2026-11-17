@@ -538,7 +538,7 @@ const NH_MAPS={
 const NH_SITES={'3.0':'Missouri','4.0':'New York','5.0':'South New Jersey','6.0':'Ohio','7.0':'Florida','10.0':'Illinois','12.0':'Washington','13.0':'Atlanta','15.0':'North Carolina','18.0':'Tennessee','19.0':'North Texas','23.0':'North New Jersey','26.0':'South Carolina','101.5':'roadies'};
 const NH_SLUG={status:'status',shift:'sda8290dd7',pick:'sc418c1d53',type:'s0d3ee7089',ss:'sd0332b1b4'};
 const NH={rows:[],req:[],reqMsg:'',site:'',shift:'',from:'',to:'',sched:false,sample:false};
-const NH_COL={started:'#2a78d6',noshow:'#eb6834',sched:'#a8a6a0'};
+const NH_COL={started:'#2a78d6',noshow:'#eb6834',sched:'#a8a6a0',req:'#2a9d8f'};
 const isoToday=()=>new Date().toLocaleDateString('en-CA');
 const addDays=(iso,n)=>{const d=new Date(iso+'T00:00:00Z');d.setUTCDate(d.getUTCDate()+n);return d.toISOString().slice(0,10)};
 const weekEnd=iso=>{const d=new Date(iso+'T00:00:00Z');d.setUTCDate(d.getUTCDate()+(6-d.getUTCDay()+7)%7);return d.toISOString().slice(0,10)};
@@ -760,7 +760,7 @@ function nhChart(el,cats,series,o){
   svg.onmousemove=e=>{
     const i=e.target.dataset&&e.target.dataset.i;if(i==null){tip.style.display='none';return}
     const c=cats[+i];
-    tip.innerHTML=`<b>${c.tip}</b><br>`+series.map(s=>`<span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:${s.color};margin-right:6px"></span>${s.name}: ${s.vals[+i]}`).join('<br>')+(c.rate!=null?`<br>Show rate: ${c.rate}%`:'');
+    tip.innerHTML=`<b>${c.tip}</b><br>`+series.map(s=>`<span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:${s.color};margin-right:6px"></span>${s.name}: ${s.vals[+i]}`).join('<br>')+(c.rate!=null?`<br>Show rate: ${c.rate}%`:'')+(c.fill!=null?`<br>Fill rate: ${c.fill}%`:'');
     tip.style.display='block';tip.style.left=Math.min(e.clientX+14,innerWidth-190)+'px';tip.style.top=(e.clientY+14)+'px';
   };
   svg.onmouseleave=()=>{tip.style.display='none'};
@@ -780,7 +780,11 @@ function nhRender(){
     return;
   }
   const rate=pct(c.Started,c.Started+c['No Show']);
-  const k=[['Records in view',rows.length.toLocaleString(),`of ${all.toLocaleString()} loaded`],['Started',c.Started.toLocaleString(),'status STARTED'],['No Shows',c['No Show'].toLocaleString(),'No Show I/II/III/DNU/Missing ID'],['Show rate',rate==null?'—':rate+'%','Started ÷ (Started + No Show)'],['Requested',NH.req.length?nhReqRows().reduce((a,r)=>a+r.total,0).toLocaleString():'—','total requested (all weeks in filter)'],['Scheduled',c.Scheduled.toLocaleString(),'not yet started'],['Other',c.Other.toLocaleString(),'Sent Home, DNR, Bad BG, Already Active']];
+  const _d0=NH.from||(rows.length?rows.reduce((a,r)=>r.date<a?r.date:a,rows[0].date):''),_d1=NH.to||(rows.length?rows.reduce((a,r)=>r.date>a?r.date:a,rows[0].date):'');
+  const rqIn=(_d0&&_d1)?nhReqRows().filter(r=>r.week>=weekEnd(_d0)&&r.week<=weekEnd(_d1)):[];
+  const rqTot=rqIn.reduce((a,r)=>a+r.total,0),hasReq=NH.req.length>0;
+  const fillAll=hasReq&&rqTot?pct(c.Started,rqTot):null;
+  const k=[['Fill rate',fillAll==null?'—':fillAll+'%',hasReq?`${c.Started.toLocaleString()} started of ${rqTot.toLocaleString()} requested`:'Sync to load requests'],['Requested',hasReq?rqTot.toLocaleString():'—','total requested in range'],['Started',c.Started.toLocaleString(),'vs requested · status STARTED'],['No Shows',c['No Show'].toLocaleString(),'No Show I/II/III/DNU/Missing ID'],['Show rate',rate==null?'—':rate+'%','Started ÷ (Started + No Show)'],['Records in view',rows.length.toLocaleString(),`of ${all.toLocaleString()} loaded`],['Scheduled',c.Scheduled.toLocaleString(),'not yet started'],['Other',c.Other.toLocaleString(),'Sent Home, DNR, Bad BG, Already Active']];
   $('nhKpis').innerHTML=k.map(x=>`<div class="kpi"><div class="l">${x[0]}</div><div class="v">${x[1]}</div><div class="s">${x[2]}</div></div>`).join('');
 
   const mkSeries=(vs,vn,vsch)=>{const s=[{name:'Started',color:NH_COL.started,vals:vs},{name:'No Show',color:NH_COL.noshow,vals:vn}];if(NH.sched)s.push({name:'Scheduled',color:NH_COL.sched,vals:vsch});return s};
@@ -799,8 +803,10 @@ function nhRender(){
   const byW={};rows.forEach(r=>{(byW[r.week]=byW[r.week]||cnt([]))[r.group]++});
   let weeks=[];if(rows.length){const w0=weekEnd(dmin),w1=weekEnd(dmax);for(let w=w0;w<=w1;w=addDays(w,7))weeks.push(w)}
   const gw=w=>byW[w]||cnt([]);
+  const rqW={};nhReqRows().forEach(r=>{rqW[r.week]=(rqW[r.week]||0)+r.total});
   const wS=mkSeries(weeks.map(w=>gw(w).Started),weeks.map(w=>gw(w)['No Show']),weeks.map(w=>gw(w).Scheduled));
-  nhChart($('nhWeek'),weeks.map(w=>{const x=gw(w);return {label:mdOf(w),sub:'WE',tip:'Week ending '+w,rate:pct(x.Started,x.Started+x['No Show'])}}),wS,{minSlot:56,aria:'Started versus no shows by week'});
+  if(hasReq)wS.unshift({name:'Requested',color:NH_COL.req,vals:weeks.map(w=>rqW[w]||0)});
+  nhChart($('nhWeek'),weeks.map(w=>{const x=gw(w);return {label:mdOf(w),sub:'WE',tip:'Week ending '+w,rate:pct(x.Started,x.Started+x['No Show']),fill:rqW[w]?pct(x.Started,rqW[w]):null}}),wS,{minSlot:56,aria:'Started versus no shows by week'});
   nhReqStrip($('nhReqW'),weeks,gw,true);
   nhLegend($('nhLegW'),wS);$('nhWeekSub').textContent='Each column is a week ending Saturday; hover for the show rate.';
   // tables
