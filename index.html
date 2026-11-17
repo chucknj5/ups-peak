@@ -77,6 +77,11 @@ td.n,th.n{text-align:right;font-variant-numeric:tabular-nums}
 .grid1{display:grid;grid-template-columns:1fr;gap:18px;margin-bottom:20px}
 .chwrap{overflow-x:auto}
 .chwrap svg text{font-family:inherit}
+.reqstrip{overflow-x:auto;margin-top:12px;border-top:1px solid var(--line);padding-top:10px}
+.reqstrip h3{font-size:12px;margin:0 0 6px;color:var(--mute);font-weight:600;text-transform:uppercase;letter-spacing:.04em}
+.reqstrip table{font-size:12px;border-collapse:collapse}
+.reqstrip th,.reqstrip td{padding:4px 10px;text-align:right;white-space:nowrap;border-bottom:1px solid var(--line)}
+.reqstrip th:first-child,.reqstrip td:first-child{text-align:left;position:sticky;left:0;background:#fff}
 #nhTip{position:fixed;pointer-events:none;background:#1f1a14;color:#fff;font-size:12px;padding:8px 10px;border-radius:6px;display:none;z-index:20;line-height:1.55}
 .banner{background:#fff6d6;border:1px solid #f1dc8d;color:#6a5200;padding:8px 12px;border-radius:8px;font-size:12px;margin-top:8px}
 .nhempty{padding:36px;text-align:center;color:var(--mute);font-size:14px}
@@ -180,8 +185,8 @@ td.n,th.n{text-align:right;font-variant-numeric:tabular-nums}
   </div>
   <div class="kpis" id="nhKpis" style="margin-top:18px"></div>
   <div class="grid1">
-    <div class="card"><h2>By Day</h2><p class="sub" id="nhDaySub"></p><div class="legend" id="nhLegD"></div><div class="chwrap" id="nhDay"></div></div>
-    <div class="card"><h2>By Week (week ending Saturday)</h2><p class="sub" id="nhWeekSub"></p><div class="legend" id="nhLegW"></div><div class="chwrap" id="nhWeek"></div></div>
+    <div class="card"><h2>By Day</h2><p class="sub" id="nhDaySub"></p><div class="legend" id="nhLegD"></div><div class="chwrap" id="nhDay"></div><div class="reqstrip" id="nhReqD"></div></div>
+    <div class="card"><h2>By Week (week ending Saturday)</h2><p class="sub" id="nhWeekSub"></p><div class="legend" id="nhLegW"></div><div class="chwrap" id="nhWeek"></div><div class="reqstrip" id="nhReqW"></div></div>
   </div>
   <div class="grid">
     <div class="card"><h2>By Site</h2><div class="scroll" style="max-height:380px"><table id="nhTSite"></table></div></div>
@@ -532,7 +537,7 @@ const NH_MAPS={
 };
 const NH_SITES={'3.0':'Missouri','4.0':'New York','5.0':'South New Jersey','6.0':'Ohio','7.0':'Florida','10.0':'Illinois','12.0':'Washington','13.0':'Atlanta','15.0':'North Carolina','18.0':'Tennessee','19.0':'North Texas','23.0':'North New Jersey','26.0':'South Carolina','101.5':'roadies'};
 const NH_SLUG={status:'status',shift:'sda8290dd7',pick:'sc418c1d53',type:'s0d3ee7089',ss:'sd0332b1b4'};
-const NH={rows:[],site:'',shift:'',from:'',to:'',sched:false,sample:false};
+const NH={rows:[],req:[],reqMsg:'',site:'',shift:'',from:'',to:'',sched:false,sample:false};
 const NH_COL={started:'#2a78d6',noshow:'#eb6834',sched:'#a8a6a0'};
 const isoToday=()=>new Date().toLocaleDateString('en-CA');
 const addDays=(iso,n)=>{const d=new Date(iso+'T00:00:00Z');d.setUTCDate(d.getUTCDate()+n);return d.toISOString().slice(0,10)};
@@ -563,6 +568,29 @@ function nhSiteOf(title,pick){
   const m=title.match(/^(Site\s+[\d.]+\s*-\s*.+?)\s*-\s/);
   if(m)return {site:m[1].trim(),name:title.slice(m[0].length).trim()};
   return {site:pick?('Site '+pick+(NH_SITES[pick]?' - '+NH_SITES[pick]:'')):'Unassigned',name:title.replace(/^\s*-\s*/,'').trim()};
+}
+const RQ_SHIFT={ocNI5:'AM',b4qjw:'PM','7YQzN':'MID',CkISn:'20'};
+const RQ_PICK={MO8Ew:'1.0','5HZJu':'3.0','86k4U':'4.0',NAr31:'5.0',lj8Gw:'6.0',B3wU1:'7.0',s0Chb:'10.0',T7oY0:'12.0',cbA4G:'13.0',QJQJY:'15.0',PW3WI:'18.0',WV0Gp:'19.0',oLeKr:'23.0',Npb3z:'26.0',wJaJi:'26.5','0DOJI':'13.5',HwGDy:'101.5'};
+const nhBaseShift=s=>String(s||'').replace(/\s*Weekend$/i,'').trim();
+function nhReqNorm(x){
+  const d=x.d&&x.d.date?String(x.d.date).slice(0,10):'';
+  const t=String(x.title||'');
+  const m=t.match(/^(Site\s+[\d.]+\s*-\s*[^-]+?)\s*-\s*[A-Za-z]{3}\s+\d/);
+  const pk=RQ_PICK[x.pick]||'';
+  const site=m?m[1].trim():(pk?('Site '+pk+(NH_SITES[pk]?' - '+NH_SITES[pk]:'')):'Unassigned');
+  return {date:d,week:d?weekEnd(d):'',site,shift:RQ_SHIFT[x.shift]||String(x.shift||''),total:Number(x.total)||0};
+}
+function nhReqRows(){return NH.req.filter(r=>r.week&&(!NH.site||siteNum(r.site)===siteNum(NH.site))&&(!NH.shift||r.shift===nhBaseShift(NH.shift)))}
+function nhReqStrip(el,weeks,gw,withStarted){
+  if(!NH.req.length){el.innerHTML=NH.sample?'':'<div class="note">'+esc(NH.reqMsg||'Requests not loaded yet — click Sync from SmartSuite.')+'</div>';return}
+  const rq={};nhReqRows().forEach(r=>{rq[r.week]=(rq[r.week]||0)+r.total});
+  let h='<h3>Total requested for the week</h3><table><tr><th>Week ending</th>'+weeks.map(w=>`<th>${mdOf(w)}</th>`).join('')+'</tr>';
+  h+='<tr><td><b>Requested</b></td>'+weeks.map(w=>`<td><b>${(rq[w]||0).toLocaleString()}</b></td>`).join('')+'</tr>';
+  if(withStarted){
+    h+='<tr><td>Started</td>'+weeks.map(w=>`<td>${gw(w).Started}</td>`).join('')+'</tr>';
+    h+='<tr><td>Fill rate</td>'+weeks.map(w=>{const f=rq[w]?pct(gw(w).Started,rq[w]):null;return `<td>${f==null?'—':f+'%'}</td>`}).join('')+'</tr>';
+  }
+  el.innerHTML=h+'</table>';
 }
 const siteNum=x=>{const m=String(x).match(/Site\s+([\d.]+)/);return m?parseFloat(m[1]):9999};
 function nhSlim(x){return {title:x.title,s87d5a2ff3:x.s87d5a2ff3,sda8290dd7:x.sda8290dd7,status:x.status,sc418c1d53:x.sc418c1d53,s0d3ee7089:x.s0d3ee7089,sd0332b1b4:x.sd0332b1b4}}
@@ -656,8 +684,15 @@ async function nhSync(){
       got={items:j.items||[],maps:NH_MAPS};
     }catch(e){errs.push('Apps Script: '+(e instanceof TypeError?'could not reach the web app':e.message))}
   }
+  if(got&&su){
+    try{
+      const r2=await fetch(su+(su.includes('?')?'&':'?')+'action=requests&token='+encodeURIComponent(stok),{cache:'no-store'});
+      const j2=await r2.json();if(j2.error)throw new Error(j2.error);
+      NH.req=(j2.items||[]).map(nhReqNorm);NH.reqMsg='';
+    }catch(e){NH.req=[];NH.reqMsg='Requests: '+(e instanceof TypeError?'could not reach the web app':e.message)}
+  }
   btn.disabled=false;btn.textContent='⟳ Sync from SmartSuite';
-  if(got){nhSet(got.items.map(x=>nhNorm(x,got.maps)),false);nhStatusMsg(`Synced ${new Date().toLocaleTimeString()} · ${NH.rows.length} records`)}
+  if(got){nhSet(got.items.map(x=>nhNorm(x,got.maps)),false);nhStatusMsg(`Synced ${new Date().toLocaleTimeString()} · ${NH.rows.length} records · ${NH.req.length} requests`)}
   else{
     nhStatusMsg(errs.length?errs.join(' | '):'Not connected yet — open ⚙ Connection.');
     $('nhConn').style.display='';
@@ -740,11 +775,12 @@ function nhRender(){
     $('nhKpis').innerHTML='';
     ['nhDay','nhWeek'].forEach(i=>$(i).innerHTML='<div class="nhempty">No data yet. Click <b>Sync from SmartSuite</b>, drop a SmartSuite CSV/JSON export on this tab, or <b>Load sample data</b> to preview.</div>');
     ['nhDaySub','nhWeekSub','nhLegD','nhLegW','nhDetSub'].forEach(i=>$(i).textContent='');
+    ['nhReqD','nhReqW'].forEach(i=>$(i).innerHTML='');
     ['nhTSite','nhTShift','nhTDet'].forEach(i=>$(i).innerHTML='');
     return;
   }
   const rate=pct(c.Started,c.Started+c['No Show']);
-  const k=[['Records in view',rows.length.toLocaleString(),`of ${all.toLocaleString()} loaded`],['Started',c.Started.toLocaleString(),'status STARTED'],['No Shows',c['No Show'].toLocaleString(),'No Show I/II/III/DNU/Missing ID'],['Show rate',rate==null?'—':rate+'%','Started ÷ (Started + No Show)'],['Scheduled',c.Scheduled.toLocaleString(),'not yet started'],['Other',c.Other.toLocaleString(),'Sent Home, DNR, Bad BG, Already Active']];
+  const k=[['Records in view',rows.length.toLocaleString(),`of ${all.toLocaleString()} loaded`],['Started',c.Started.toLocaleString(),'status STARTED'],['No Shows',c['No Show'].toLocaleString(),'No Show I/II/III/DNU/Missing ID'],['Show rate',rate==null?'—':rate+'%','Started ÷ (Started + No Show)'],['Requested',NH.req.length?nhReqRows().reduce((a,r)=>a+r.total,0).toLocaleString():'—','total requested (all weeks in filter)'],['Scheduled',c.Scheduled.toLocaleString(),'not yet started'],['Other',c.Other.toLocaleString(),'Sent Home, DNR, Bad BG, Already Active']];
   $('nhKpis').innerHTML=k.map(x=>`<div class="kpi"><div class="l">${x[0]}</div><div class="v">${x[1]}</div><div class="s">${x[2]}</div></div>`).join('');
 
   const mkSeries=(vs,vn,vsch)=>{const s=[{name:'Started',color:NH_COL.started,vals:vs},{name:'No Show',color:NH_COL.noshow,vals:vn}];if(NH.sched)s.push({name:'Scheduled',color:NH_COL.sched,vals:vsch});return s};
@@ -757,6 +793,7 @@ function nhRender(){
   const gd=d=>byD[d]||cnt([]);
   const dS=mkSeries(days.map(d=>gd(d).Started),days.map(d=>gd(d)['No Show']),days.map(d=>gd(d).Scheduled));
   nhChart($('nhDay'),days.map(d=>{const x=gd(d);return {label:mdOf(d),sub:dowOf(d),tip:dowOf(d)+' '+d,rate:pct(x.Started,x.Started+x['No Show'])}}),dS,{minSlot:30,aria:'Started versus no shows by day'});
+  nhReqStrip($('nhReqD'),[...new Set(days.map(weekEnd))],null,false);
   nhLegend($('nhLegD'),dS);$('nhDaySub').textContent='Started vs No Show for each start date.'+note;
   // by week
   const byW={};rows.forEach(r=>{(byW[r.week]=byW[r.week]||cnt([]))[r.group]++});
@@ -764,6 +801,7 @@ function nhRender(){
   const gw=w=>byW[w]||cnt([]);
   const wS=mkSeries(weeks.map(w=>gw(w).Started),weeks.map(w=>gw(w)['No Show']),weeks.map(w=>gw(w).Scheduled));
   nhChart($('nhWeek'),weeks.map(w=>{const x=gw(w);return {label:mdOf(w),sub:'WE',tip:'Week ending '+w,rate:pct(x.Started,x.Started+x['No Show'])}}),wS,{minSlot:56,aria:'Started versus no shows by week'});
+  nhReqStrip($('nhReqW'),weeks,gw,true);
   nhLegend($('nhLegW'),wS);$('nhWeekSub').textContent='Each column is a week ending Saturday; hover for the show rate.';
   // tables
   const tbl=(el,keyFn,keys,label)=>{
